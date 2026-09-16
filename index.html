@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Vestates — Generator &amp; Diesel Report</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap');
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:'Inter',ui-sans-serif,system-ui,sans-serif; background:#0B0F14; color:#E8EDF2; padding:28px 20px 60px; }
+  .mono { font-family:'IBM Plex Mono',monospace; }
+  .display { font-family:'Space Grotesk',sans-serif; }
+  .wrap { max-width:980px; margin:0 auto; }
+  .header { display:flex; justify-content:space-between; align-items:flex-end; flex-wrap:wrap; gap:12px; margin-bottom:18px; }
+  .brand { display:flex; align-items:center; gap:14px; }
+  .brand-mark { background:#F5F3F7; border-radius:8px; padding:6px 10px; display:flex; align-items:center; line-height:0; }
+  .brand-mark img { height:26px; width:auto; display:block; }
+  .eyebrow { color:#4FD1C5; font-size:12px; letter-spacing:1px; margin-bottom:4px; }
+  h1 { font-size:26px; font-weight:600; margin:0; }
+  select { background:#131A22; border:1px solid #2A343F; color:#E8EDF2; border-radius:6px; padding:7px 10px; font-size:13px; font-family:'IBM Plex Mono',monospace; }
+  .controls { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .toggle { display:flex; align-items:center; gap:6px; background:#131A22; border:1px solid #2A343F; border-radius:6px; padding:7px 12px; font-size:13px; cursor:pointer; user-select:none; }
+  .toggle.active { border-color:#E8A33D; color:#E8A33D; }
+  .day-nav { display:flex; align-items:center; gap:4px; }
+  .day-btn { background:#131A22; border:1px solid #2A343F; color:#E8EDF2; border-radius:6px; width:30px; height:30px; font-size:14px; cursor:pointer; display:flex; align-items:center; justify-content:center; font-family:'IBM Plex Mono',monospace; }
+  .day-btn:hover:not(:disabled) { border-color:#4FD1C5; color:#4FD1C5; }
+  .day-btn:disabled { opacity:0.3; cursor:not-allowed; }
+  .day-label { font-family:'IBM Plex Mono',monospace; font-size:11px; color:#556070; min-width:64px; text-align:center; }
+  .vs-label { font-family:'IBM Plex Mono',monospace; font-size:12px; color:#8B98A5; }
+  .alert, .error, .loading, .warn { display:none; align-items:center; gap:10px; border-radius:8px; padding:10px 14px; margin-bottom:20px; font-size:13px; }
+  .alert.show, .error.show, .loading.show, .warn.show { display:flex; }
+  .alert { background:rgba(229,72,77,0.08); border:1px solid rgba(229,72,77,0.35); }
+  .error { background:rgba(229,72,77,0.12); border:1px solid rgba(229,72,77,0.5); }
+  .warn { background:rgba(232,163,61,0.08); border:1px solid rgba(232,163,61,0.35); }
+  .loading { background:#131A22; border:1px solid #2A343F; color:#8B98A5; font-family:'IBM Plex Mono',monospace; }
+  .kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:12px; margin-bottom:22px; }
+  .kpi { background:#131A22; border:1px solid #2A343F; border-radius:10px; padding:14px 16px; }
+  .kpi .label { font-size:11px; color:#8B98A5; margin-bottom:6px; }
+  .kpi .value { font-size:20px; font-weight:600; }
+  .kpi .unit { font-size:13px; color:#8B98A5; font-weight:400; }
+  .kpi .delta { font-family:'IBM Plex Mono',monospace; font-size:12px; margin-top:4px; }
+  .kpi .delta.up { color:#E5484D; }
+  .kpi .delta.down { color:#4FD1C5; }
+  .tabs { display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap; }
+  .tab { display:flex; align-items:center; gap:6px; background:transparent; border:1px solid #2A343F; color:#8B98A5; border-radius:8px; padding:7px 12px; font-size:13px; cursor:pointer; font-family:inherit; }
+  .tab.active { background:#1B242E; }
+  .legend { display:flex; gap:16px; padding:0 14px 10px; font-size:12px; font-family:'IBM Plex Mono',monospace; color:#8B98A5; }
+  .legend span { display:inline-flex; align-items:center; gap:6px; }
+  .swatch { width:10px; height:10px; border-radius:2px; display:inline-block; }
+  .panel { background:#131A22; border:1px solid #2A343F; border-radius:10px; margin-bottom:22px; }
+  .chart-panel { padding:18px 14px 8px; }
+  svg text { font-family:'IBM Plex Mono',monospace; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th, td { padding:9px 14px; text-align:right; }
+  th:first-child, td:first-child { text-align:left; }
+  th { color:#8B98A5; font-weight:500; border-bottom:1px solid #2A343F; cursor:pointer; user-select:none; white-space:nowrap; }
+  tbody tr { border-bottom:1px solid #1C242D; }
+  tbody tr:hover { background:#171F28; }
+  td.mono, tbody { font-family:'IBM Plex Mono',monospace; }
+  td:first-child { font-family:'Inter',sans-serif; }
+  .flag-dot { color:#E5484D; margin-left:6px; }
+  .notes { padding:14px 16px; font-size:13px; color:#C7D0D9; }
+  .notes .label { font-family:'IBM Plex Mono',monospace; font-size:11px; color:#8B98A5; margin-bottom:6px; }
+  .tooltip { position:absolute; pointer-events:none; background:#131A22; border:1px solid #2A343F; border-radius:6px; padding:8px 12px; font-family:'IBM Plex Mono',monospace; font-size:12px; display:none; z-index:10; }
+  footer { text-align:center; color:#556070; font-size:11px; margin-top:30px; font-family:'IBM Plex Mono',monospace; }
+  #dashboard { display:none; }
+  #dashboard.show { display:block; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="loading show" id="loadingBox">Loading reports from the repository…</div>
+  <div class="error" id="errorBox"></div>
+  <div class="warn" id="warnBox"></div>
+
+  <div id="dashboard">
+    <div class="header">
+      <div class="brand">
+        <div class="brand-mark"><img src="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/4gHYSUNDX1BST0ZJTEUAAQEAAAHIAAAAAAQwAABtbnRyUkdCIFhZWiAH4AABAAEAAAAAAABhY3NwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAA9tYAAQAAAADTLQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAlkZXNjAAAA8AAAACRyWFlaAAABFAAAABRnWFlaAAABKAAAABRiWFlaAAABPAAAABR3dHB0AAABUAAAABRyVFJDAAABZAAAAChnVFJDAAABZAAAAChiVFJDAAABZAAAAChjcHJ0AAABjAAAADxtbHVjAAAAAAAAAAEAAAAMZW5VUwAAAAgAAAAcAHMAUgBHAEJYWVogAAAAAAAAb6IAADj1AAADkFhZWiAAAAAAAABimQAAt4UAABjaWFlaIAAAAAAAACSgAAAPhAAAts9YWVogAAAAAAAA9tYAAQAAAADTLXBhcmEAAAAAAAQAAAACZmYAAPKnAAANWQAAE9AAAApbAAAAAAAAAABtbHVjAAAAAAAAAAEAAAAMZW5VUwAAACAAAAAcAEcAbwBvAGcAbABlACAASQBuAGMALgAgADIAMAAxADb/2wBDAAMCAgICAgMCAgIDAwMDBAYEBAQEBAgGBgUGCQgKCgkICQkKDA8MCgsOCwkJDRENDg8QEBEQCgwSExIQEw8QEBD/2wBDAQMDAwQDBAgEBAgQCwkLEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBD/wAARCAAqAQ8DASIAAhEBAxEB/8QAHQAAAwEBAQADAQAAAAAAAAAAAAcIBgUEAQIDCf/EAEoQAAEDAwMCAwQECAgPAQAAAAECAwQFBhEAByESMQgTQRQiUWEVMnGhFiNCUnSBkbIYMzU3YnKCohckNkNGU2N1doW0wcTR0vD/xAAbAQABBQEBAAAAAAAAAAAAAAAAAQIDBAYFB//EADMRAAEDAgQDBQcEAwAAAAAAAAECAxEABBIhMUEFUYETYXGhsQYUIjKRweEVM0LwctHx/9oADAMBAAIRAxEAPwD+nujRry1Wq0+iU2TV6rLbjQ4jZdedWcBKR/8Au3cnjSgFRga0Exma515XfRrGt6Tcdcf6I8cYSgfXecP1W0D1Uf8A2TwCdSbN8RO7H0w9Wo1VMSLMWVsQ1RkLYS2DgJSVJycYwSDyc6ZsO2K94hrkbuy6ESKdZMFZFMgklLkwZ5WcdgrHKvh7qfVQYe42z9s35abVutRWac7T2ymmPMo6RGOPqYH5BwMj7D3A1qLJdhwpQZu0ha1fNuEDl3nnGmlcx4P3QKmjAGnf+OVTDY29tatm8514z2l1f29L3mREzFNNJW4sKKkjCgMYIAx66ZVR8X7iomKTZCW5R/KkzettP6koBP7RrqbT0GwLmnStsN3NvKCi86Mj3XlQkNGqRR2eSpAHUsDHVjvkKHcgcXxJ7HWnZNrQrvsOhJpzMaWmPU2mnHFpU277qHMLUenpc6Rxjhfy12HFcKu75NvcMkLMAGfhI2iCJB2y7jVVIummStteW/Pv2+9L24vEHuncXUg3CaayrP4qnoDOP7fK/wC9pjeFfcCS9UqpZlZnOvuTCahFW84VqU4AA6nJ5JI6Vf2VfHU5afVSsudYW21hbp0WKBUKMpMmeAMF1l9zrR1kegCg2fkv5av8UtLNFsLNKQkuGEwAMwJE9QB1qC2ddLnakk4dfCqm0ax1oXs1VJrdJnSg6ajH+k6PKKQkTYauSnjgOtdQStPw6VepA2OvNHmVsKwr/v8AfxrWiQsLEijRr8pkYTIj8QvPMh9tTZcZWUOIyMdSVDsoZyD6HUf+IuNuhsxUaVKt7dO8ZdBqYUgGVUlOOsvIIKkFfGQUnKSRnhXfGrNjZi+c7ILAUdJ3qN97sU4iJFWLo1mrHpdObsyI3TLirVWh1KP7UzOqE5T8pTbyQoEO9xgEYx29NIldqXlVN93ttbX3dvZugUinNTau87VVOvsuL5DKHD6qSpsgqBIyo84A0jFol5S0lcYQTmDoKFulABiZqm9GsHd+2zVTtONT2L1u+nv0WI8GJ0SsOtyXSUg9T6+7pykd/icYzqcvDPTLt3mNx/hPvBuHFFH9j8j2Cvuo6vN87q6usLzjyk4xjudSsWKHmFv9pARE5HcwKat4oWEYczVk6NItrau+7Q3Zs2RR9xL7rttPGWqrJqlXckNsKbZJa68dKSlaiAAUnlPrnXf8S249Y2y2xeq9vr8qpVCW3To7/SFeQVpWtSwDxkJbUBnsSDzjGovc8brbTKgrH0jMjP6fSndthSpSxEU1dGkXZfh/2rvjbyj1u5WJdwVOs05qVIrD9RfXIU64gKUUnrwnpUSAnBxjCsnOTbK2Lj212MvWm19U5x6A5V1RBJKlkx22ehotpP5CvLKgE8HqyO+nKtGYIQ4SoECCI13GZ9BSB1WUpyInX8U9NGps2v2Ir42tgVqubrbgUqZIhKmogUysqjx46FJKm0FBSo56ekntycY4zrE+GemXZvN+En4Ubv7hxfof2PyPYLgdR1eb53V1dYXn+LTjGO57+lg8MbwOOJdBCCAcjuYpnvCpSkpzV31ZOjSF2Ntm5rd3i3BpVwXNWq6zR48JiDLqkpb7hZf6nUjKj3wgA9OBlPYdtMXeW7n7L26q9VgFZqT7YgU1CDhapb58trp+YKur7EnVR20wPhhtWKYg/wCQB+9SpdlBWoRE+VbXRqZfCbuJdT9xXRtluDW6hOq8F1T7JqEtb7qFNK8p9oKWScA9BAB/PPx00vEY/JY2WucQ2nHH3mGo7aG0lSlKcfbRwBzn3v8Avp71gpi7Fqo6kZ7Z701D4W0XAOflTI0am6vbMXHY2z8645O8e4aa1SaOuWqNHrq24aHko6i2lGCroB4+sM4zxnGuH4dLPuLd6x59yXHvJuRFlxqo7BbTCuBxLfQlllYJCwok5cV6jgDU36c0WlPh34UmNDTPeFYggpzOetVbo0kfDBSrlpse90XXV59UnxLidpZlzXluuOpjoTg5WSek+Zkc450ofE8xdW0VXobNn7n3wiNVWH1uMP159aW1NqSB0YUMAhXY57aGeGB66NolzPYxkcppV3BQ12pTVmaNKGT4epSorqYe+m6iJJQQ0t24ipAXjgqSEAkZ9AR9uu5sHTrxpm19LZv+TU3q6tySuV9JPrefT+OWEAqWScdASRz2OqrjDSWy425MECIIOc5+VSJWoqwqTFMLRqWdn5NN8S94XbWNx5kmdBpq2k0qge1ONRmWFqcw4pCFDrUAlIKj6nJ/JA11J2Ki7fb70Cv2FDqEG25UKYqox2pDio6H0tlKAokk4V5oKUqOMoJHbGrDtg2wtTLq4WBMRlpMTOvSo0vqWAtIyJ59NI+9PjWEuGy6rf1yBm6whm1KWtDkeA271Kqb+AfMfx9VtJOA33JyTxga01duq37abDlbqjMYqGUtk9Tih8kDJP7NYafv1bjCyiBSZ0oD8pXS2D9nJP3azz3tBZcHWe1dSlf1UO8AZg98eGdD7zCfhdV0pmNttstpZZbShtCQlKUjASB2AHoNfbSi/hBRs/5LOY/TB/8AGvXG3+oSyBLoc5oZ5LakLx+0jXLT7WcGWYD46hQ9RTBf2xyxetdndDbUXvFiVeiTvoq6qIv2ikVNA95pwfkL/ObVyCD6E+hIPzb1dhb3WBXbLuqnCmV1lldLrtNVyYr6k+66j85tXDjavXGMkg69lI3TsesEIbrSIzh/IlAtfefd+/XivmyqpV327127rTVHuuPGVGZmhKVsy46jksvJIKVpB95JIJSrkdzrV8N4rbX7aW0Og4TKVAzhPIxJwnyOY3BU4Fy41nOoG/59dOVRXTbcqki52bPmNKbqX0iKW+jHKXg75auPt5+wjV9VK3aZVbcftaUzmBIiGGUfBvp6Rj5jjB+I0m7L2EvGNuNH3Gvy5KZPmB4ypCYrRSXnvL6Uk4QhIx7p4HPT+vT313/aPiiLxxoMqBwiSRMYjy00jKoOH2xaSrGNefKpLj3lDsm2KltjeD1RjV216kt+g1CI0lZYWMqSfeUPcUScjnKHO3A0+dot06bubb6ZAU2xV4iQifEB+qr/AFiR3KFenwOQe2T67i2i2+uyvG5LhoCJk0tJaJU84lJCexKUkAnHGT6Aa+5jbb7XxVzI1MpVHU4jp/xdhKX3gD9XgdShn48D1xqjxXivDnbUuOApX8xJICQT83Q6+PWntNO26sSlDAPTataSB3IGeNLbxEWL+H+09ZpjDIcnQW/pGFxk+ayCopHzUjrQP62ujbdelXXVYtYqEZyPDd8w0qEfrKSnHXKd9PUJT6DqOM99bjWf4ZxEPEXTGgOXfoZjYHbug71ZCk3CDyNTv4Ut04L2ztRiV6WUmyUuLeUSCfYilTiDz8OlxIHwSnWw8OdEnC1Z+4ddZ6KxfU5ysPgjltgkiO2D+aEEqHyXqaJu21dpXiDrGztBkOw6Tc8lCJAbGB9GKWmUen5oSgpB/olPqdXXGjMQ4zUOK0lphhCW220jAQlIwAPkANaXi4aZlTJ/dhXgNfNUnoKr2uJcBX8cuv8Az1rz1n+R536M7+6dRN4UWN3Hvwp/wVzbYj9PsPt/00Hj1fx/l+X5aT/tM5/o49dVbuPuCLUjv0tqyrtrkmTDUpv6HpDkloFXUkJU4PdScp5GcgEHHOps8NFUvHZl24Rc2zu4EpusJilpUChOrUhTJdyFBfTwQ73B9O3On8NStFi/ABKsMAxnBzy7qS4ILyM9JmmhtfG3Ob8QNcc3RVT3Z6bYaRGepqFiKWPaAQEFYCs9fmZzznPpjTU3K2+ou59oTLQrhW21Jwtp9vHWw8nlDic98HuPUEj10odzd379vK1n7R292h3BptRrJENydU6MuM3GaWcKUFpKsEgkdRwEgk5411d8xeFhxdv7ztWBU62q1JSo05lgOOKkR3GAhanAM9w2R1qB6VKB7nmBbLzrza5CFnIAR/EZHuk5U8LSlChmRv1/1STlUTxEeFt5ybSZSqlbDbnUpSAZEFQJ7uNH3mCeMkdPJA6jql9kN46bvLa7lXYhGDUYLgYnxOrqShZGUrQr1QoZxnkEEemTxn/EjtZWrekoiN1SpVB9gsmgilSFSnFrSfxKkhBTyMjPUU4zye2uP4TNpq/ttatTql0RVQ6lcDrK/ZFn32WWgvo6x6KJcWSO4GM85AnvVi4tVOXbeB0EQYjFzy7hv4Uxkdm6EtKlJ8qdVZ/ked+jO/unUs+Az/Tn/ln/AJWn1uXfcu2Ij1JpljXPX502E6WDTKcp6OhZBSlLruQEc845OOwPGp38NCr12XkV9N3bU3o7HrQiht2DSVvltTXm/WSMHBDvcZ7fPUdk0o8OfTurDAkSYOdOeUO3QeUz9KsDU770X45I3ktq3YVp165oNmn6aqMOjQzJc9sWkiN1gfV6AQvJ/PxpvXvfb9nwYz8Oy7juCTNQ4WY9LhF3oUkJOHl9mgerjOScKwDjGlJ4bpt002uXCdwLCueFcd21Nyc7UXaYoQgyhvKGlO/5vpJcCQePeSBzqtYNdkhd0oTAgCYmcieeQnrUjysRDYNJi8L5nWn4gabu8mx7ktiHNkNuSI9WhKjqfAQG5PQCMKBQQfXClZ+GrpYfZksNyY7iXGnUBaFpOQpJGQR8saQ3i2o0y77VhWtRLNuCr1hqQifFkQaep2O0kdSHEOOjhJKTnp5JISde3w+XpetPtmjbfX7t3dMGZCSYcaorgLVFUwlJLfmL7tlKR0cjBwnnJxq3fJF7Zt3CAApPwkTnhGh55VEySy6ps5g59a2++X8z14/7mk/uHSx8D/8ANPVv+In/APpo2tRvzdtXkWvcO3tu7e3XWKhUYBjolRaYpUJIcAyfOzyQCeACc8fHGB8MFTuja+gPWRd22F5MuVOrmSxMZpK3I6A4202fNUOWwCjPURjBPbGmstK/S1o3KgQJExGsUq1D3kHaKpzUg+O7+WLQ/Rpn7zWq2qExNOgSaguPIfTFZW8Wo7RddcCUk9KEDlSjjASOScDUd+J567d3KvRHLT2qvsMUll9tx2Vb8hvzFLUkjpASTjCfXHftpnAEkXqXD8omT0NLfGWSnf8ANb/dCH4qU7eXB9L1Gx36eYDqZjdKRJ9qVHKfxoR1oCfqdWfXGcc407dvEFuwLZbUgpKaPCSUkYxhlHGNYNrxCuqaQX9jN10OFIK0otwqSFY5AJWMjPrgfYNcSxm9w9z6tuFc9zUKtW5CqNJ+gqJTZyXI60oKHCXSlWPeypJ6x2KiAfd0jzbrjGF1KUBJmRGcwIgHrSoUlK5SSSaw+6Phnvu1rqk7i7HVN5tbri5C4LD/AJMhhSjlSWjkJcbJz7hIOOMK179nPFZWHq6bF3jgpgzWgtsVEsFlaHEJJKJDWOFHB5SBzgdPOR2NnfEJTbftaBZm78WrW9WqU2mEh6dAf6ZaE8N8hJUlzpGCFDkjIJJwMvdG3H8JPeUXPSaLPp1oRqciPIqsqKuP7e6nzOlTSFhK1fWQnOBhLfOOAekMTgUxxJPwpBhzfLSDvPL61XySQu3OZ1T/AHSqIlWNT1yHHoMGltuPZW5JlxTLfUs9zlauPv14XrBq6h+LuGmn+g7QY6kH5cYP3622jWBXwizWZKY8CU+SSBV027Z29R6UsKnYtSbSpc6x7brDIGMU4rgPn4nGek/YDrKqtDbqrSFQWqrUrZqPb2WqNjpB+ROP1ZVk/DT5155tOp9Sa8mowI8pv8x9pK0/sI1w+I+zlqEF2AQNQpIP0UnCodSfCqr1m3GL1H3EHzNISrbKXhABdp4i1JrGQWHOlRH9VWPuJ1nkLvazHT0mq0og8ghbaFfq+qr79U9DYYjRkR4zKGmmx0oQhISlIz2AHA1+qkpWkoWkKSeCCMg657nsRarAfs3VNKieceGh86hPDGyMbaik1O8Tee+4yQlydGk49Xo6c/3ca9Z30vQjAYpg+fkK/wDvTQvO3bfNMckGhU/zeff9lR1ftxnS6tmj0l+uR2X6XEcbUo5SthJB/URrNXL/ABWyeFuLtR78/uTVJan2lYO0Ncd3czci4nRBgTXutzgNQY4Cz9hAKvv11KfYTdHSm6dz5qyVqyzT/M82RLc9Ennn04B9eSNPCHAg09vyYEJiM3+ay2ED9gGvM3BhO1h+c5DYXJaShCHlNgrQkg5AV3A+WtI17OqWhFzevqeUSAkKkpBO5TOccpA51dTZkgLcUVE6ToOm9cazKZU1uSLmr0ZMaZOQlmPEAwIcVP1GvkT3Pzx2xganRo1t7W3TatBpJnmTqScyT4npsMq6baA2nCKNGjRqxT6NGjRooo0aNGiijRo0aKKNGjRooo0aNGiijRo0aKKNGjRooo0aNGiijRo0aKKNGjRoor//2Q==" alt="Vestates"></div>
+        <div>
+          <div class="eyebrow mono">VESTATES · FACILITIES</div>
+          <h1 class="display">Generator &amp; Diesel Report</h1>
+        </div>
+      </div>
+      <div class="controls">
+        <div class="toggle" id="compareToggle">⇄ Compare days</div>
+        <div class="day-nav">
+          <button class="day-btn" id="prevDay" title="Previous day">‹</button>
+          <select id="dateA"></select>
+          <button class="day-btn" id="nextDay" title="Next day">›</button>
+          <span class="day-label" id="dayPosLabel"></span>
+        </div>
+        <span class="vs-label" id="vsLabel" style="display:none;">vs</span>
+        <select id="dateB" style="display:none;"></select>
+      </div>
+    </div>
+
+    <div class="alert" id="alertBox"><span>⚠</span><span id="alertText"></span></div>
+
+    <div class="kpis" id="kpis"></div>
+    <div class="tabs" id="tabs"></div>
+
+    <div class="panel chart-panel">
+      <div class="legend" id="legend" style="display:none;"></div>
+      <div id="chart" style="position:relative;"></div>
+    </div>
+
+    <div class="panel">
+      <table><thead><tr id="tableHead"></tr></thead><tbody id="tableBody"></tbody></table>
+    </div>
+
+    <div class="panel notes">
+      <div class="label">GENERAL COMMENTS</div>
+      <div id="commentsText"></div>
+    </div>
+
+    <footer>Loaded live from <span id="folderLabel" class="mono"></span> in this repository</footer>
+  </div>
+</div>
+
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+// ---- Edit these three to point at your repo, then drop each day's tracker
+// file into that folder (any filename ending in .xlsx). The page lists and
+// parses everything it finds there automatically — no further edits needed. ----
+const GITHUB_OWNER  = "ayodejitoluwani-dot";
+const GITHUB_REPO   = "diesel-dashboard";
+const GITHUB_BRANCH = "main";
+const REPORTS_FOLDER = "reports";
+
+const METRICS = {
+  consumed: { label: "Diesel Consumed", unit: "L", color: "#E8A33D" },
+  hours:    { label: "Generator Runtime", unit: "hrs", color: "#5B8DEF" },
+  stock:    { label: "Diesel Stock", unit: "L", color: "#4FD1C5" },
+  reserve:  { label: "External Reserve", unit: "L", color: "#B18CF0" }
+};
+const PROPERTY_ORDER = ["Venus","April","April (BIG) — Est.","Valley","Xii-Lungi","Niche","Stazia","Libreville","Guzape","Tranquillo Big","Tranquillo Small","Apex"];
+
+let REPORTS = {};        // { "2026-09-07": { entries, comments, file }, ... }
+let currentMetric = "consumed";
+let compareMode = false;
+let dateAKey = null, dateBKey = null;
+let sortKey = null, sortDir = "desc";
+
+function fmt(n) {
+  if (n === null || n === undefined || Number.isNaN(n)) return "—";
+  return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
+}
+function isFlagged(d) { return d.consumed === 0 && d.hours === 0 && d.stock === 0; }
+
+function normalizeName(raw) {
+  const n = raw.replace(/\u00a0/g, " ").trim().toLowerCase();
+  if (n === "venus") return ["Venus"];
+  if (n === "april") return ["April"];
+  if (n.startsWith("april (big")) return ["April (BIG) — Est."];
+  if (n === "valley") return ["Valley"];
+  if (n === "xii-lungi") return ["Xii-Lungi"];
+  if (n === "niche") return ["Niche"];
+  if (n === "stazia") return ["Stazia"];
+  if (n === "libreville") return ["Libreville"];
+  if (n === "guzape") return ["Guzape"];
+  if (n === "tranquillo big") return ["Tranquillo Big"];
+  if (n === "tranquillo small") return ["Tranquillo Small"];
+  if (n === "tranquillo") return ["Tranquillo Big", "Tranquillo Small"];
+  if (n === "apex") return ["Apex"];
+  return null;
+}
+
+function parseMetricSheet(wb, possibleNames) {
+  const sheetName = wb.SheetNames.find(n => possibleNames.some(p => n.toLowerCase() === p.toLowerCase()));
+  if (!sheetName) return {};
+  const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { header: 1, raw: true });
+  const map = {};
+  rows.forEach(row => {
+    const nonNull = (row || []).filter(c => c !== null && c !== undefined && c !== "");
+    if (nonNull.length !== 2) return;
+    const [rawName, rawVal] = nonNull;
+    if (typeof rawName !== "string" || typeof rawVal !== "number") return;
+    const canon = normalizeName(rawName);
+    if (!canon) return;
+    canon.forEach(c => { map[c] = rawVal; });
+  });
+  return map;
+}
+
+function parseReportMeta(wb, fallbackDate) {
+  const sheetName = wb.SheetNames.find(n => n.toLowerCase().startsWith("report"));
+  let date = null;
+  const comments = [];
+  if (sheetName) {
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { header: 1, raw: true });
+    rows.forEach(row => {
+      (row || []).forEach(cell => {
+        if (cell instanceof Date && !isNaN(cell)) date = cell.toISOString().slice(0, 10);
+        else if (typeof cell === "string") {
+          const t = cell.replace(/\u00a0/g, " ").trim();
+          if (t.startsWith("-")) comments.push(t.replace(/^-\s*/, ""));
+        }
+      });
+    });
+  }
+  return { date: date || fallbackDate, comments: comments.join(" ") };
+}
+
+async function fetchFolderListing() {
+  const url = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${REPORTS_FOLDER}?ref=${GITHUB_BRANCH}`;
+  const res = await fetch(url);
+  if (!res.ok) {
+    if (res.status === 404) throw new Error(`No "${REPORTS_FOLDER}/" folder found in the repo yet. Create it and upload your daily .xlsx files there.`);
+    if (res.status === 403) throw new Error("GitHub API rate limit hit — try again in a bit.");
+    throw new Error(`Couldn't list files (HTTP ${res.status}).`);
+  }
+  const items = await res.json();
+  return (Array.isArray(items) ? items : []).filter(f => f.name.toLowerCase().endsWith(".xlsx"));
+}
+
+async function loadAllReports() {
+  const files = await fetchFolderListing();
+  if (!files.length) throw new Error(`No .xlsx files found in "${REPORTS_FOLDER}/" yet.`);
+
+  const failures = [];
+  const collisions = [];
+  for (const file of files) {
+    try {
+      const res = await fetch(file.download_url, { cache: "no-store" });
+      const buf = await res.arrayBuffer();
+      const wb = XLSX.read(buf, { type: "array", cellDates: true });
+
+      const consumedMap = parseMetricSheet(wb, ["Diesel Consumed"]);
+      const hoursMap = parseMetricSheet(wb, ["Total Hours"]);
+      const stockMap = parseMetricSheet(wb, ["Diesel Stock Level"]);
+      const reserveMap = parseMetricSheet(wb, ["Diesel Reserve"]);
+      const fallbackDate = file.name.replace(/\.xlsx$/i, "");
+      const { date, comments } = parseReportMeta(wb, fallbackDate);
+
+      const hasAnyData = [consumedMap, hoursMap, stockMap, reserveMap].some(m => Object.keys(m).length > 0);
+      if (!hasAnyData) { failures.push(file.name); continue; }
+
+      if (REPORTS[date]) {
+        collisions.push(`${date} (${REPORTS[date].file} overwritten by ${file.name})`);
+      }
+      const entries = PROPERTY_ORDER.map(name => ({
+        name,
+        consumed: consumedMap[name] ?? null,
+        hours: hoursMap[name] ?? null,
+        stock: stockMap[name] ?? null,
+        reserve: reserveMap[name] ?? null
+      }));
+      REPORTS[date] = { entries, comments, file: file.name };
+    } catch (e) {
+      failures.push(file.name);
+    }
+  }
+  return { failures, collisions };
+}
+
+function totalsFor(entries) {
+  const t = entries.reduce((acc, d) => {
+    acc.consumed += d.consumed || 0; acc.hours += d.hours || 0;
+    acc.stock += d.stock || 0; acc.reserve += d.reserve || 0;
+    return acc;
+  }, { consumed: 0, hours: 0, stock: 0, reserve: 0 });
+  t.avgRate = t.hours ? t.consumed / t.hours : 0;
+  return t;
+}
+
+function populateDateSelects() {
+  const dates = Object.keys(REPORTS).sort();
+  const selA = document.getElementById("dateA");
+  const selB = document.getElementById("dateB");
+  selA.innerHTML = dates.map(d => `<option value="${d}">${d}</option>`).join("");
+  selB.innerHTML = dates.map(d => `<option value="${d}">${d}</option>`).join("");
+  dateAKey = dates[dates.length - 1];
+  dateBKey = dates.length > 1 ? dates[dates.length - 2] : dates[0];
+  selA.value = dateAKey;
+  selB.value = dateBKey;
+  selA.onchange = () => { dateAKey = selA.value; renderAll(); };
+  selB.onchange = () => { dateBKey = selB.value; renderAll(); };
+
+  document.getElementById("prevDay").onclick = () => stepDay(-1);
+  document.getElementById("nextDay").onclick = () => stepDay(1);
+}
+
+function stepDay(delta) {
+  const dates = Object.keys(REPORTS).sort();
+  const idx = dates.indexOf(dateAKey);
+  const next = idx + delta;
+  if (next < 0 || next >= dates.length) return;
+  dateAKey = dates[next];
+  document.getElementById("dateA").value = dateAKey;
+  renderAll();
+}
+
+function updateDayNav() {
+  const dates = Object.keys(REPORTS).sort();
+  const idx = dates.indexOf(dateAKey);
+  document.getElementById("prevDay").disabled = idx <= 0;
+  document.getElementById("nextDay").disabled = idx >= dates.length - 1;
+  document.getElementById("dayPosLabel").textContent = dates.length ? `${idx + 1} / ${dates.length}` : "";
+}
+
+function renderTabs() {
+  const el = document.getElementById("tabs");
+  el.innerHTML = Object.entries(METRICS).map(([key, cfg]) => `
+    <button class="tab ${key === currentMetric ? 'active' : ''}" data-metric="${key}"
+      style="color:${key === currentMetric ? cfg.color : '#8B98A5'}; border-color:${key === currentMetric ? cfg.color : '#2A343F'};">
+      ${cfg.label}
+    </button>`).join("");
+  el.querySelectorAll(".tab").forEach(btn => {
+    btn.onclick = () => { currentMetric = btn.dataset.metric; renderAll(); };
+  });
+}
+
+function renderKPIsSingle(entries) {
+  const t = totalsFor(entries);
+  const items = [
+    { label: "Total Consumed", value: t.consumed, unit: "L" },
+    { label: "Total Runtime", value: t.hours, unit: "hrs" },
+    { label: "Avg Hourly Usage", value: t.avgRate, unit: "L/hr" },
+    { label: "Total Stock", value: t.stock, unit: "L" },
+    { label: "External Reserve", value: t.reserve, unit: "L" }
+  ];
+  document.getElementById("kpis").innerHTML = items.map(k => `
+    <div class="kpi"><div class="label mono">${k.label.toUpperCase()}</div>
+      <div class="value display">${fmt(k.value)} <span class="unit">${k.unit}</span></div></div>`).join("");
+}
+
+function renderKPIsCompare(entriesA, entriesB) {
+  const tA = totalsFor(entriesA), tB = totalsFor(entriesB);
+  const items = [
+    { label: "Total Consumed", key: "consumed", unit: "L" },
+    { label: "Total Runtime", key: "hours", unit: "hrs" },
+    { label: "Avg Hourly Usage", key: "avgRate", unit: "L/hr" },
+    { label: "Total Stock", key: "stock", unit: "L" },
+    { label: "External Reserve", key: "reserve", unit: "L" }
+  ];
+  document.getElementById("kpis").innerHTML = items.map(k => {
+    const a = tA[k.key], b = tB[k.key];
+    const delta = b - a;
+    const dirClass = delta > 0 ? "up" : delta < 0 ? "down" : "";
+    const arrow = delta > 0 ? "▲" : delta < 0 ? "▼" : "•";
+    return `<div class="kpi"><div class="label mono">${k.label.toUpperCase()}</div>
+      <div class="value display">${fmt(b)} <span class="unit">${k.unit}</span></div>
+      <div class="delta ${dirClass} mono">${arrow} ${fmt(Math.abs(delta))} vs ${dateAKey}</div></div>`;
+  }).join("");
+}
+
+function renderChartSingle(entries) {
+  const cfg = METRICS[currentMetric];
+  const rows = entries.filter(d => d[currentMetric] !== null && d[currentMetric] !== undefined);
+  const w = 900, h = 280, padL = 44, padB = 74, padT = 10;
+  const maxVal = Math.max(1, ...rows.map(d => d[currentMetric]));
+  const barW = (w - padL - 20) / rows.length;
+  let bars = "", labels = "";
+  rows.forEach((d, i) => {
+    const val = d[currentMetric];
+    const barH = ((h - padT - padB) * val) / maxVal;
+    const x = padL + i * barW + barW * 0.15, y = h - padB - barH, bw = barW * 0.7;
+    const fill = isFlagged(d) ? "#E5484D" : cfg.color;
+    bars += `<rect x="${x}" y="${y}" width="${bw}" height="${Math.max(barH,1)}" rx="4" fill="${fill}" data-name="${d.name}" data-value="${val}" class="bar" style="cursor:pointer;"></rect>`;
+    labels += `<text x="${x + bw/2}" y="${h - padB + 16}" fill="#8B98A5" font-size="10" text-anchor="end" transform="rotate(-30 ${x + bw/2} ${h - padB + 16})">${d.name}</text>`;
+  });
+  renderChartSVG(w, h, padL, padB, padT, maxVal, bars, labels, entries, cfg);
+  document.getElementById("legend").style.display = "none";
+}
+
+function renderChartCompare(entriesA, entriesB) {
+  const cfg = METRICS[currentMetric];
+  const names = PROPERTY_ORDER.filter(n => {
+    const a = entriesA.find(x => x.name === n), b = entriesB.find(x => x.name === n);
+    return a && b && a[currentMetric] !== null && b[currentMetric] !== null;
+  });
+  const w = 900, h = 280, padL = 44, padB = 74, padT = 10;
+  const groupW = (w - padL - 20) / names.length;
+  const maxVal = Math.max(1, ...names.map(n => Math.max(
+    entriesA.find(x => x.name === n)[currentMetric],
+    entriesB.find(x => x.name === n)[currentMetric]
+  )));
+  let bars = "", labels = "";
+  const colorA = "#5A6673", colorB = cfg.color;
+  names.forEach((n, i) => {
+    const dA = entriesA.find(x => x.name === n), dB = entriesB.find(x => x.name === n);
+    const bw = groupW * 0.32;
+    const gx = padL + i * groupW + groupW * 0.12;
+    [{ d: dA, color: isFlagged(dA) ? "#E5484D" : colorA, off: 0 }, { d: dB, color: isFlagged(dB) ? "#E5484D" : colorB, off: bw + 4 }].forEach(({ d, color, off }) => {
+      const val = d[currentMetric];
+      const barH = ((h - padT - padB) * val) / maxVal;
+      const x = gx + off, y = h - padB - barH;
+      bars += `<rect x="${x}" y="${y}" width="${bw}" height="${Math.max(barH,1)}" rx="3" fill="${color}" data-name="${d.name}" data-value="${val}" class="bar" style="cursor:pointer;"></rect>`;
+    });
+    labels += `<text x="${gx + bw + 2}" y="${h - padB + 16}" fill="#8B98A5" font-size="10" text-anchor="end" transform="rotate(-30 ${gx + bw + 2} ${h - padB + 16})">${n}</text>`;
+  });
+  renderChartSVG(w, h, padL, padB, padT, maxVal, bars, labels, [...entriesA, ...entriesB], cfg);
+  const legend = document.getElementById("legend");
+  legend.style.display = "flex";
+  legend.innerHTML = `<span><span class="swatch" style="background:${colorA}"></span>${dateAKey}</span><span><span class="swatch" style="background:${colorB}"></span>${dateBKey}</span>`;
+}
+
+function renderChartSVG(w, h, padL, padB, padT, maxVal, bars, labels, allEntries, cfg) {
+  let grid = "";
+  for (let g = 0; g <= 4; g++) {
+    const gy = padT + (h - padT - padB) * (1 - g / 4);
+    const gv = (maxVal * g) / 4;
+    grid += `<line x1="${padL}" y1="${gy}" x2="${w-10}" y2="${gy}" stroke="#20293380" stroke-dasharray="3 3"/>`;
+    grid += `<text x="${padL - 8}" y="${gy + 3}" fill="#8B98A5" font-size="11" text-anchor="end">${fmt(gv)}</text>`;
+  }
+  document.getElementById("chart").innerHTML = `<svg viewBox="0 0 ${w} ${h}" width="100%" height="280" style="display:block;">${grid}${bars}${labels}</svg>`;
+  const tooltip = document.getElementById("tooltip");
+  document.querySelectorAll(".bar").forEach(bar => {
+    bar.addEventListener("mousemove", (e) => {
+      tooltip.style.display = "block";
+      tooltip.style.left = e.pageX + 12 + "px";
+      tooltip.style.top = e.pageY - 40 + "px";
+      tooltip.innerHTML = `<div style="color:#8B98A5;margin-bottom:2px;">${bar.dataset.name}</div><div style="font-size:15px;font-weight:600;">${fmt(parseFloat(bar.dataset.value))} ${cfg.unit}</div>`;
+    });
+    bar.addEventListener("mouseleave", () => { tooltip.style.display = "none"; });
+  });
+}
+
+function renderTableSingle(entries) {
+  const head = document.getElementById("tableHead");
+  head.innerHTML = `<th>Property</th>` + Object.entries(METRICS).map(([key,cfg]) => `<th data-key="${key}">${cfg.label} (${cfg.unit})</th>`).join("");
+  head.querySelectorAll("th[data-key]").forEach(th => {
+    th.onclick = () => {
+      const key = th.dataset.key;
+      if (sortKey === key) sortDir = sortDir === "asc" ? "desc" : "asc"; else { sortKey = key; sortDir = "desc"; }
+      renderAll();
+    };
+  });
+  let rows = [...entries];
+  if (sortKey) rows.sort((a,b) => { const av=a[sortKey]??-1, bv=b[sortKey]??-1; return sortDir==="asc"?av-bv:bv-av; });
+  document.getElementById("tableBody").innerHTML = rows.map(d => `
+    <tr><td>${d.name}${isFlagged(d) ? '<span class="flag-dot">⚠</span>' : ''}</td>
+    ${Object.keys(METRICS).map(key => `<td class="mono" style="color:${d[key] ? '#E8EDF2' : '#5A6673'}">${fmt(d[key])}</td>`).join("")}</tr>`).join("");
+}
+
+function renderTableCompare(entriesA, entriesB) {
+  const cfg = METRICS[currentMetric];
+  const head = document.getElementById("tableHead");
+  head.innerHTML = `<th>Property</th><th data-key="a">${dateAKey} (${cfg.unit})</th><th data-key="b">${dateBKey} (${cfg.unit})</th><th data-key="delta">Δ</th>`;
+  let rows = PROPERTY_ORDER.map(name => {
+    const a = entriesA.find(x => x.name === name)[currentMetric];
+    const b = entriesB.find(x => x.name === name)[currentMetric];
+    const delta = (a !== null && b !== null) ? b - a : null;
+    return { name, a, b, delta };
+  });
+  head.querySelectorAll("th[data-key]").forEach(th => {
+    th.onclick = () => {
+      const key = th.dataset.key;
+      if (sortKey === key) sortDir = sortDir === "asc" ? "desc" : "asc"; else { sortKey = key; sortDir = "desc"; }
+      renderAll();
+    };
+  });
+  if (sortKey) rows.sort((r1,r2) => { const v1=r1[sortKey]??-999, v2=r2[sortKey]??-999; return sortDir==="asc"?v1-v2:v2-v1; });
+  document.getElementById("tableBody").innerHTML = rows.map(r => {
+    const dirColor = r.delta > 0 ? "#E5484D" : r.delta < 0 ? "#4FD1C5" : "#8B98A5";
+    return `<tr><td>${r.name}</td>
+      <td class="mono" style="color:${r.a ? '#E8EDF2' : '#5A6673'}">${fmt(r.a)}</td>
+      <td class="mono" style="color:${r.b ? '#E8EDF2' : '#5A6673'}">${fmt(r.b)}</td>
+      <td class="mono" style="color:${dirColor}">${r.delta === null ? '—' : (r.delta > 0 ? '+' : '') + fmt(r.delta)}</td></tr>`;
+  }).join("");
+}
+
+function renderAll() {
+  document.getElementById("dateA").style.display = "inline-block";
+  document.getElementById("vsLabel").style.display = compareMode ? "inline" : "none";
+  document.getElementById("dateB").style.display = compareMode ? "inline-block" : "none";
+  document.getElementById("compareToggle").classList.toggle("active", compareMode);
+  updateDayNav();
+
+  renderTabs();
+
+  if (!compareMode) {
+    const report = REPORTS[dateAKey];
+    renderAlertSingle(report.entries);
+    renderKPIsSingle(report.entries);
+    renderChartSingle(report.entries);
+    renderTableSingle(report.entries);
+    document.getElementById("commentsText").textContent = report.comments || "—";
+  } else {
+    const rA = REPORTS[dateAKey], rB = REPORTS[dateBKey];
+    document.getElementById("alertBox").classList.remove("show");
+    renderKPIsCompare(rA.entries, rB.entries);
+    renderChartCompare(rA.entries, rB.entries);
+    renderTableCompare(rA.entries, rB.entries);
+    document.getElementById("commentsText").textContent = `${dateAKey}: ${rA.comments || "—"}  /  ${dateBKey}: ${rB.comments || "—"}`;
+  }
+}
+
+function renderAlertSingle(entries) {
+  const flagged = entries.filter(isFlagged);
+  const box = document.getElementById("alertBox"), text = document.getElementById("alertText");
+  if (flagged.length) { box.classList.add("show"); text.textContent = flagged.map(f => f.name).join(", ") + " — zero consumption, runtime and stock. Verify meter or connectivity."; }
+  else box.classList.remove("show");
+}
+
+function showError(msg) {
+  document.getElementById("loadingBox").classList.remove("show");
+  const box = document.getElementById("errorBox");
+  box.classList.add("show");
+  box.textContent = msg;
+}
+
+async function init() {
+  try {
+    const { failures, collisions } = await loadAllReports();
+    if (Object.keys(REPORTS).length === 0) throw new Error("No reports could be read — check the files match the tracker's sheet layout.");
+
+    populateDateSelects();
+    document.getElementById("folderLabel").textContent = `${REPORTS_FOLDER}/`;
+    document.getElementById("compareToggle").onclick = () => {
+      compareMode = !compareMode;
+      if (compareMode && dateAKey === dateBKey) {
+        const dates = Object.keys(REPORTS).sort();
+        if (dates.length > 1) { dateBKey = dates[dates.length - 2]; document.getElementById("dateB").value = dateBKey; }
+      }
+      renderAll();
+    };
+
+    if (failures.length || collisions.length) {
+      const warn = document.getElementById("warnBox");
+      warn.classList.add("show");
+      const parts = [];
+      if (failures.length) parts.push(`Skipped ${failures.length} file(s) that didn't match the expected format: ${failures.join(", ")}`);
+      if (collisions.length) parts.push(`Same-date collisions: ${collisions.join("; ")}`);
+      warn.textContent = parts.join(" — ");
+    }
+
+    renderAll();
+    document.getElementById("loadingBox").classList.remove("show");
+    document.getElementById("dashboard").classList.add("show");
+  } catch (err) {
+    showError(err.message || "Something went wrong loading the reports.");
+  }
+}
+
+init();
+</script>
+</body>
+</html>
